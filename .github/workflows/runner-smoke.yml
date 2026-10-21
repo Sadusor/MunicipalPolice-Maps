@@ -1,0 +1,14 @@
+name: Runner availability check
+on:
+  push:
+    paths:
+      - '.github/workflows/runner-smoke.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - run: echo 'GITHUB_RUNNER> PASS'
