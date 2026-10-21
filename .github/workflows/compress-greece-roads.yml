@@ -1,0 +1,42 @@
+name: Compress nationwide SQLite for APK
+on:
+  push:
+    paths:
+      - ".github/workflows/compress-greece-roads.yml"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  compress:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Download verified existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir dist
+          gh release download greece-bundle-v1 --repo "$GITHUB_REPOSITORY" --dir dist --pattern 'greece_roads.sqlite' --pattern 'greece_roads.json'
+      - name: Verify and compress
+        run: |
+          python - <<'PY'
+          import json,hashlib,pathlib,gzip,shutil
+          d=pathlib.Path('dist')
+          m=json.loads((d/'greece_roads.json').read_text())
+          source=d/'greece_roads.sqlite'
+          assert source.stat().st_size==m['bytes']
+          assert hashlib.sha256(source.read_bytes()).hexdigest()==m['sha256']
+          with source.open('rb') as a, gzip.open(d/'greece_roads.sqlite.gz','wb',compresslevel=9) as b: shutil.copyfileobj(a,b,1024*1024)
+          z=d/'greece_roads.sqlite.gz'
+          m['gzip_file']=z.name
+          m['gzip_bytes']=z.stat().st_size
+          m['gzip_sha256']=hashlib.sha256(z.read_bytes()).hexdigest()
+          (d/'greece_roads.json').write_text(json.dumps(m,ensure_ascii=False,indent=2)+'\n')
+          print('GREECE_SQLITE_RAW_MIB>',round(source.stat().st_size/1024**2,2))
+          print('GREECE_SQLITE_GZIP_MIB>',round(z.stat().st_size/1024**2,2))
+          PY
+      - name: Publish compressed asset and updated manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload greece-bundle-v1 dist/greece_roads.sqlite.gz dist/greece_roads.json --repo "$GITHUB_REPOSITORY" --clobber
