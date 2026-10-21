@@ -1,0 +1,24 @@
+name: Inspect Greek administrative boundaries
+on:
+  push:
+    paths:
+      - ".github/workflows/inspect-boundaries.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Retrieve public boundary data and list names
+        run: |
+          python - <<'PY'
+          import json, urllib.request
+          u='https://raw.githubusercontent.com/peterdsp/greece-prefectures-and-units/main/greecePrefecturesUnits.geojson'
+          with urllib.request.urlopen(u,timeout=60) as response:
+              data=json.load(response)
+          print('BOUNDARY_FEATURE_COUNT>',len(data['features']))
+          for f in data['features']:
+              p=f['properties']
+              print('UNIT>',repr(p.get('name_greek')),repr(p.get('name')),repr(p.get('id')))
+          PY
