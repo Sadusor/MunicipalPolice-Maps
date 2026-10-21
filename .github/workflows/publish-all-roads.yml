@@ -1,0 +1,76 @@
+name: Build and publish all 51 Greek prefecture road packs
+on:
+  push:
+    paths:
+      - ".github/workflows/publish-all-roads.yml"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: roads-publish
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install OSM and geometry libraries
+        run: python -m pip install --disable-pip-version-check pyosmium shapely==2.1.2
+      - name: Download source datasets via HTTPS
+        run: |
+          mkdir -p source
+          curl --fail --location --retry 3 --connect-timeout 30 --max-time 1800 \
+            -o source/greece.osm.pbf https://download.geofabrik.de/europe/greece-latest.osm.pbf
+          curl --fail --location --retry 3 --connect-timeout 30 --max-time 180 \
+            -o source/units.geojson https://raw.githubusercontent.com/peterdsp/greece-prefectures-and-units/main/greecePrefecturesUnits.geojson
+          test "$(wc -c < source/greece.osm.pbf)" -gt 200000000
+          test "$(wc -c < source/units.geojson)" -gt 1000000
+          sha256sum source/greece.osm.pbf source/units.geojson
+      - name: Build and fully validate all 51 regional packages
+        run: |
+          python scripts/build_all_prefecture_roads.py \
+            --pbf source/greece.osm.pbf --boundaries source/units.geojson \
+            --output output --tag roads-v1
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          cat=json.loads(Path("output/catalogue.json").read_text())
+          assert len(cat["regions"])==51
+          for item in cat["regions"]:
+              assert (Path("output")/(item["id"]+".tsv.gz")).is_file(), item
+          print("CATALOGUE_QA> PASS",len(cat["regions"]))
+          PY
+      - name: Publish versioned road packages to public GitHub Releases
+        run: |
+          if gh release view roads-v1 >/dev/null 2>&1; then
+            echo 'RELEASE_ALREADY_EXISTS — refusing overwrite'; exit 1
+          fi
+          gh release create roads-v1 output/*.tsv.gz \
+            --repo "$GITHUB_REPOSITORY" --title "Greece offline roads, 51 prefectures (v1)" \
+            --notes "Named OSM road segments by Greek prefecture. © OpenStreetMap contributors, ODbL. Boundary polygons from peterdsp/greece-prefectures-and-units (MIT). Not a guarantee of every road." \
+            --latest
+      - name: Activate verified public catalogue only after all assets published
+        run: |
+          cp output/catalogue.json catalogue.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add catalogue.json
+          git commit -m "data: activate 51 verified public road pack downloads"
+          git push origin HEAD:main
+      - name: End-to-end manifest check
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path("catalogue.json").read_text())
+          assert len(d["regions"])==51
+          print("PUBLISHED_REGION_COUNT>",len(d["regions"]))
+          PY
