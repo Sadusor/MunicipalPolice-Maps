@@ -3,7 +3,7 @@
 This repository distributes **only** offline street-index datasets and a machine-readable region catalogue for MunicipalPolice. It contains no Android source, accounts, incident records, photographs, contact details or signing credentials.
 
 ## Status
-No verified regional packs have been published yet. `catalogue.json` intentionally contains an empty list. The Android app must report **not available** until a real verified package has been published.
+A nationwide Greece SQLite gzip road bundle is publicly distributed in release `greece-bundle-v1`; see [licensing, provenance and checksums](docs/GREECE_BUNDLE_LICENSE_AND_PROVENANCE.md). Regional TSV catalogue packs have not yet been verified/published. `catalogue.json` intentionally contains an empty list. The Android app must report **not available** until a real verified package has been published.
 
 ## Road pack contract
 * One pack per Greek prefecture/administrative unit (Νομός), using checked geographical boundaries — **not** postcode-number ranges.
